@@ -1,9 +1,9 @@
-import pytorch_lightning as pl
-import torch
-
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+
+import pytorch_lightning as pl
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from .metrics import accuracy
