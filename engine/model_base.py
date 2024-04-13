@@ -4,7 +4,7 @@ from datetime import datetime
 import pytorch_lightning as pl
 import torch
 
-from .metrics import accuracy
+from .metrics import accuracy, balanced_accuracy
 
 
 class LightningBaseModule(pl.LightningModule, ABC):
@@ -45,6 +45,10 @@ class LightningBaseModule(pl.LightningModule, ABC):
             "train_accuracy",
             accuracy(training_labels, training_predictions.argmax(dim=1)),
         )
+        self.log(
+            "train_balanced_accuracy",
+            balanced_accuracy(training_labels, training_predictions.argmax(dim=1)),
+        )
 
     def validation_step(self, batch):
         X, y = batch
@@ -73,4 +77,8 @@ class LightningBaseModule(pl.LightningModule, ABC):
         self.log(
             "val_accuracy",
             accuracy(validation_labels, validation_predictions.argmax(dim=1)),
+        )
+        self.log(
+            "val_balanced_accuracy",
+            balanced_accuracy(validation_labels, validation_predictions.argmax(dim=1)),
         )

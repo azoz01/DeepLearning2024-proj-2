@@ -1,16 +1,23 @@
 import json
+import numpy as np
 import pickle as pkl
-from typing import Literal
-
 import torch
 import torch.utils.data as data_utils
+
 from torch.utils.data import DataLoader
+from typing import Literal
 
+from collections import Counter
 
-def _retreive_data(sample: Literal["train", "val", "test"]) -> DataLoader:
+def _retreive_data(
+    sample: Literal["train", "val", "test"],
+    undersample_majority: bool = False
+) -> DataLoader:
     data = torch.load(f"data/converted/{sample}_data.pt")
     with open(f"data/converted/{sample}_labels.json") as f:
         labels = json.load(f)
+    if undersample_majority:
+        data, labels = __undersample_dataset(data, labels)
     labels = torch.LongTensor(labels)
     data = data.cuda()
     labels = labels.cuda()
@@ -33,11 +40,14 @@ def _create_loader(
     return loader
 
 
-def get_data_loader(sample: Literal["train", "val", "test"]) -> DataLoader:
+def get_data_loader(
+    sample: Literal["train", "val", "test"],
+    undersample_majority: bool = False
+) -> DataLoader:
     """
     Return all 12 classes
     """
-    data, labels = _retreive_data(sample)
+    data, labels = _retreive_data(sample, undersample_majority)
 
     shuffle = True if sample == "train" else False
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
@@ -98,3 +108,20 @@ def get_main_classes_loader(
 
     shuffle = True if sample == "train" else False
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
+
+
+def __undersample_dataset(data, labels):
+    counter = Counter(labels)
+    _, voice_command_class_count = counter.most_common(3)[-1]
+    for label, observation_count in counter.most_common(2):
+        not_label_examples = data[np.array(labels) != label]
+        label_examples = data[np.array(labels) == label]
+        label_examples = label_examples[
+            np.random.choice(len(label_examples), size=voice_command_class_count)
+        ]
+        data = torch.concat([not_label_examples, label_examples], dim=0)
+
+        labels = [el for el in labels if el != label]
+        labels = labels + [label]*voice_command_class_count
+    return data, labels
+
