@@ -19,7 +19,7 @@ def get_logs_info(root_path: str = "lightning_logs") -> Dict[str, Any]:
         desc["model_paths"] = list(path.rglob("*.ckpt"))
         desc["cls"] = desc["hp"]["cls_name"]
 
-    return get_logs_info
+    return res
 
 
 def get_model_from_log(log_dict: Dict[str, Any]) -> LightningBaseModule:
