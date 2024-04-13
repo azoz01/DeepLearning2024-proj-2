@@ -7,7 +7,7 @@ from engine import attention, lstm
 from engine.model_base import LightningBaseModule
 
 
-def get_logs_info(root_path: str) -> Dict[str, Any]:
+def get_logs_info(root_path: str = "lightning_logs") -> Dict[str, Any]:
     root_path = Path(root_path)
     res = {}
 
