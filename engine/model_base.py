@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from pathlib import Path
 
 import pytorch_lightning as pl
 import torch
-from torch.utils.tensorboard import SummaryWriter
 
 from .metrics import accuracy
 
@@ -12,14 +10,10 @@ from .metrics import accuracy
 class LightningBaseModule(pl.LightningModule, ABC):
     def __init__(self):
         super().__init__()
-        self.tensorboard_logger = self.__get_tensorboard_logger()
-
-    def __get_tensorboard_logger(self):
-        model_name = type(self).__name__
-        timestamp = datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
-        logger_path = Path(f"results/{model_name}/{timestamp}")
-        logger_path.mkdir(exist_ok=True, parents=True)
-        return SummaryWriter(logger_path)
+        self.hparams["cls_name"] = type(self).__name__
+        self.hparams["timestamp"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     @abstractmethod
     def forward(self, X):
@@ -47,7 +41,7 @@ class LightningBaseModule(pl.LightningModule, ABC):
     def on_train_epoch_end(self, *args, **kwargs):
         training_labels = torch.concat(self.training_labels, dim=0)
         training_predictions = torch.concat(self.training_predictions, dim=0)
-        self.__log_to_all_loggers(
+        self.log(
             "train_accuracy",
             accuracy(training_labels, training_predictions.argmax(dim=1)),
         )
@@ -56,7 +50,11 @@ class LightningBaseModule(pl.LightningModule, ABC):
         X, y = batch
         predictions = self.forward(X)
         loss = self.loss(predictions, y)
-        self.log("val_step_loss", loss, prog_bar=True)
+        self.log(
+            "val_step_loss",
+            loss,
+            prog_bar=True,
+        )
         return {"loss": loss, "predictions": predictions}
 
     def on_validation_epoch_start(self, *args, **kwargs):
@@ -72,11 +70,7 @@ class LightningBaseModule(pl.LightningModule, ABC):
         validation_predictions = torch.concat(
             self.validation_predictions, dim=0
         )
-        self.__log_to_all_loggers(
+        self.log(
             "val_accuracy",
             accuracy(validation_labels, validation_predictions.argmax(dim=1)),
         )
-
-    def __log_to_all_loggers(self, name, value):
-        self.log(name, value)
-        self.tensorboard_logger.add_scalar(name, value, self.current_epoch)

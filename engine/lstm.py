@@ -18,6 +18,13 @@ class LSTMCommandRecognition(LightningBaseModule):
     ):
         super().__init__()
 
+        self.input_size = input_size
+        self.output_size = output_size
+        self.hidden_size = hidden_size
+        self.lstm_unit = lstm_units
+        self.dropout = dropout
+        self.bidirectional = bidirectional
+
         self.lstm = nn.LSTM(
             input_size=input_size,
             hidden_size=hidden_size,
@@ -31,6 +38,7 @@ class LSTMCommandRecognition(LightningBaseModule):
         self.softmax = nn.Softmax()
 
         self.loss = nn.CrossEntropyLoss()
+        self.save_hyperparameters()
 
     def forward(self, X):
 
