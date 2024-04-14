@@ -2,3 +2,4 @@ lightning_logs
 *temp*
 *tmp*
 **/*.pyc
+**/__pycache__

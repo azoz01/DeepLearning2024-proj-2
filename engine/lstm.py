@@ -15,6 +15,7 @@ class LSTMCommandRecognition(LightningBaseModule):
         lstm_units: int = 1,
         dropout: float = 0.3,
         bidirectional: bool = False,
+        num_used_state: int = 1,
     ):
         super().__init__()
 
@@ -24,6 +25,7 @@ class LSTMCommandRecognition(LightningBaseModule):
         self.lstm_unit = lstm_units
         self.dropout = dropout
         self.bidirectional = bidirectional
+        self.num_used_state = num_used_state
 
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -34,7 +36,11 @@ class LSTMCommandRecognition(LightningBaseModule):
             batch_first=True,
         )
 
-        self.linear = nn.Linear(hidden_size, output_size)
+        lstm_output_size = (
+            hidden_size if not bidirectional else hidden_size * 2
+        )
+        self.flatten = nn.Flatten()
+        self.linear = nn.Linear(lstm_output_size * num_used_state, output_size)
         self.softmax = nn.Softmax()
 
         self.loss = nn.CrossEntropyLoss()
@@ -43,7 +49,13 @@ class LSTMCommandRecognition(LightningBaseModule):
     def forward(self, X):
 
         out, _ = self.lstm(X)
-        out = self.linear(out[:, -1, :])
+
+        used_states = [
+            (i + 1) * out.shape[1] // self.num_used_state - 1
+            for i in range(self.num_used_state)
+        ]
+        out = self.flatten(out[:, used_states, :])
+        out = self.linear(out)
         out = self.softmax(out)
 
         return out
