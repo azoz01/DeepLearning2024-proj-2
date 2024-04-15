@@ -69,17 +69,19 @@ def get_commands_loader(sample: Literal["train", "val", "test"]) -> DataLoader:
         for idx, cls_name in zip(range(12), cls_names)
         if cls_name not in {"unknown", "silence"}
     ]
+    commands_idx_mapping = dict(zip(commands_idx, range(len(commands_idx))))
 
-    commands_rows = torch.isin(labels, torch.Tensor(commands_idx).cuda())
+    commands_rows = torch.isin(labels, torch.LongTensor(commands_idx).cuda())
 
     data, labels = data[commands_rows], labels[commands_rows]
+    labels = torch.LongTensor([commands_idx_mapping[label] for label in labels.cpu().numpy()])
 
-    shuffle = True if sample == "train" else False
+    shuffle = sample == "train"
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
 
 
 def get_main_classes_loader(
-    sample: Literal["train", "val", "test"]
+    sample: Literal["train", "val", "test"], oversample_silence: bool = False
 ) -> DataLoader:
     """
     Cast to three categories: commands, unknown, silence
@@ -105,6 +107,19 @@ def get_main_classes_loader(
     labels[commands_rows] = 0
     labels[labels == unknown_idx] = 1
     labels[labels == silence_idx] = 2
+
+    if oversample_silence:
+        silence_mask = labels.cpu().numpy() == 2
+        silence_loc = np.where(silence_mask)[0]
+        silence_loc = np.random.choice(
+            silence_loc,
+            size=(len(silence_mask) - silence_mask.sum()) // 2 - silence_mask.sum(),
+            replace=True
+        )
+        additional_silence = data[silence_loc]
+        additional_labels = [2]*len(silence_loc)
+        data = torch.concat([data, additional_silence])
+        labels = torch.concat([labels, torch.LongTensor(additional_labels).cuda()])
 
     shuffle = True if sample == "train" else False
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
