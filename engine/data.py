@@ -69,17 +69,19 @@ def get_commands_loader(sample: Literal["train", "val", "test"]) -> DataLoader:
         for idx, cls_name in zip(range(12), cls_names)
         if cls_name not in {"unknown", "silence"}
     ]
+    commands_idx_mapping = dict(zip(commands_idx, range(len(commands_idx))))
 
-    commands_rows = torch.isin(labels, torch.Tensor(commands_idx).cuda())
+    commands_rows = torch.isin(labels, torch.LongTensor(commands_idx).cuda())
 
     data, labels = data[commands_rows], labels[commands_rows]
+    labels = torch.LongTensor([commands_idx_mapping[label] for label in labels.cpu().numpy()])
 
-    shuffle = True if sample == "train" else False
+    shuffle = sample == "train"
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
 
 
 def get_main_classes_loader(
-    sample: Literal["train", "val", "test"]
+    sample: Literal["train", "val", "test"], oversample_silence: bool = False
 ) -> DataLoader:
     """
     Cast to three categories: commands, unknown, silence
@@ -106,6 +108,19 @@ def get_main_classes_loader(
     labels[labels == unknown_idx] = 1
     labels[labels == silence_idx] = 2
 
+    if oversample_silence:
+        silence_mask = labels.cpu().numpy() == 2
+        silence_loc = np.where(silence_mask)[0]
+        silence_loc = np.random.choice(
+            silence_loc,
+            size=(len(silence_mask) - silence_mask.sum()) // 2 - silence_mask.sum(),
+            replace=True
+        )
+        additional_silence = data[silence_loc]
+        additional_labels = [2]*len(silence_loc)
+        data = torch.concat([data, additional_silence])
+        labels = torch.concat([labels, torch.LongTensor(additional_labels).cuda()])
+
     shuffle = True if sample == "train" else False
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
 
@@ -125,3 +140,38 @@ def __undersample_dataset(data, labels):
         labels = labels + [label]*voice_command_class_count
     return data, labels
 
+
+def get_label_mapping(
+    setting: Literal["all", "main", "commands_only"]
+) -> np.array:
+    with open("data/converted/encoder.pkl", "rb") as f:
+        encoder = pkl.load(f)
+    match setting:
+        case "all":
+            mapping = dict(
+                zip(range(12), list(encoder.inverse_transform(list(range(12)))))
+            )
+        case "main":
+            mapping = {
+                0: "command",
+                1: "unknown",
+                2: "silence"
+            }
+        case "commands_only":
+            cls_names = list(encoder.inverse_transform(list(range(12))))
+            commands_idx = [
+                idx
+                for idx, cls_name in zip(range(12), cls_names)
+                if cls_name not in {"unknown", "silence"}
+            ]
+            commands_idx_mapping = dict(zip(range(len(commands_idx)), commands_idx))
+            mapping = {i: cls_names[commands_idx_mapping[i]] for i in range(len(commands_idx))}
+    return mapping
+
+def decode_composed_model_predictions(predictions):
+    with open("data/converted/encoder.pkl", "rb") as f:
+        encoder = pkl.load(f)
+    mapping_commands = get_label_mapping("commands_only")
+    mapping_commands.update({-1: "unknown", -2: "silence"})
+    predictions = np.array([mapping_commands[prediction] for prediction in predictions])
+    return encoder.transform(predictions)
