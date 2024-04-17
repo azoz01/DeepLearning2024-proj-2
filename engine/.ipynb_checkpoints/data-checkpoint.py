@@ -167,3 +167,11 @@ def get_label_mapping(
             commands_idx_mapping = dict(zip(range(len(commands_idx)), commands_idx))
             mapping = {i: cls_names[commands_idx_mapping[i]] for i in range(len(commands_idx))}
     return mapping
+
+def decode_composed_model_predictions(predictions):
+    with open("data/converted/encoder.pkl", "rb") as f:
+        encoder = pkl.load(f)
+    mapping_commands = get_label_mapping("commands_only")
+    mapping_commands.update({-1: "unknown", -2: "silence"})
+    predictions = np.array([mapping_commands[prediction] for prediction in predictions])
+    return encoder.transform(predictions)
