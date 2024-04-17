@@ -1,24 +1,23 @@
 import pytorch_lightning as pl
 import torch
 
-from loguru import logger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 from engine.attention import AttentionAudioClassifier
-from engine.data import get_data_loader
+from engine.data import get_commands_loader
 
+    
 torch.set_float32_matmul_precision("high")
 pl.seed_everything(123)
 
+train_loader = get_commands_loader("train")
+val_loader = get_commands_loader("val")
+test_loader = get_commands_loader("test")
+
 EMBEDDING_SIZE = 80
-
-def main():
-    logger.info("Loading data")
-    train_loader = get_data_loader("train", undersample_majority=True)
-    val_loader = get_data_loader("val")
-    test_loader = get_data_loader("test")
-
-    logger.info("Initializing callbacks")
+for i in range(5):
+    print(i)
+    pl.seed_everything(i)
     callbacks = [
         EarlyStopping(
             monitor="val_balanced_accuracy",
@@ -35,18 +34,13 @@ def main():
         )
     ]
     
-    logger.info("Initializing model & trainer")
-    model = AttentionAudioClassifier(12, 100, EMBEDDING_SIZE, 512, 4, 4).cuda()
+    model = AttentionAudioClassifier(10, 100, EMBEDDING_SIZE, 512, 4, 4).cuda()
     trainer = pl.Trainer(
         max_epochs=100,
         callbacks=callbacks,
         gradient_clip_val=1,
-        gradient_clip_algorithm="norm"
+        gradient_clip_algorithm="norm",
+        default_root_dir="results/attention_commands_only",
+        deterministic=True
     )
-    
-    logger.info("Training model")
     trainer.fit(model, train_loader, val_loader)
-    
-
-if __name__ == "__main__":
-    main()
