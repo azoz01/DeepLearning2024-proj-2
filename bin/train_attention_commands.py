@@ -1,12 +1,10 @@
 import pytorch_lightning as pl
 import torch
-
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 from engine.attention import AttentionAudioClassifier
 from engine.data import get_commands_loader
 
-    
 torch.set_float32_matmul_precision("high")
 pl.seed_everything(123)
 
@@ -30,10 +28,10 @@ for i in range(5):
             monitor="val_accuracy",
             filename="model-{epoch}-{val_accuracy:.2f}",
             mode="max",
-            every_n_epochs=1
-        )
+            every_n_epochs=1,
+        ),
     ]
-    
+
     model = AttentionAudioClassifier(10, 100, EMBEDDING_SIZE, 512, 4, 4).cuda()
     trainer = pl.Trainer(
         max_epochs=100,
@@ -41,6 +39,6 @@ for i in range(5):
         gradient_clip_val=1,
         gradient_clip_algorithm="norm",
         default_root_dir="results/attention_commands_only",
-        deterministic=True
+        deterministic=True,
     )
     trainer.fit(model, train_loader, val_loader)

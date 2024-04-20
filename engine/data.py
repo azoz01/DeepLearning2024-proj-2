@@ -1,17 +1,16 @@
 import json
-import numpy as np
 import pickle as pkl
-import torch
-import torch.utils.data as data_utils
-
-from torch.utils.data import DataLoader
+from collections import Counter
 from typing import Literal
 
-from collections import Counter
+import numpy as np
+import torch
+import torch.utils.data as data_utils
+from torch.utils.data import DataLoader
+
 
 def _retreive_data(
-    sample: Literal["train", "val", "test"],
-    undersample_majority: bool = False
+    sample: Literal["train", "val", "test"], undersample_majority: bool = False
 ) -> DataLoader:
     data = torch.load(f"data/converted/{sample}_data.pt")
     with open(f"data/converted/{sample}_labels.json") as f:
@@ -41,8 +40,7 @@ def _create_loader(
 
 
 def get_data_loader(
-    sample: Literal["train", "val", "test"],
-    undersample_majority: bool = False
+    sample: Literal["train", "val", "test"], undersample_majority: bool = False
 ) -> DataLoader:
     """
     Return all 12 classes
@@ -74,7 +72,9 @@ def get_commands_loader(sample: Literal["train", "val", "test"]) -> DataLoader:
     commands_rows = torch.isin(labels, torch.LongTensor(commands_idx).cuda())
 
     data, labels = data[commands_rows], labels[commands_rows]
-    labels = torch.LongTensor([commands_idx_mapping[label] for label in labels.cpu().numpy()])
+    labels = torch.LongTensor(
+        [commands_idx_mapping[label] for label in labels.cpu().numpy()]
+    )
 
     shuffle = sample == "train"
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
@@ -113,13 +113,16 @@ def get_main_classes_loader(
         silence_loc = np.where(silence_mask)[0]
         silence_loc = np.random.choice(
             silence_loc,
-            size=(len(silence_mask) - silence_mask.sum()) // 2 - silence_mask.sum(),
-            replace=True
+            size=(len(silence_mask) - silence_mask.sum()) // 2
+            - silence_mask.sum(),
+            replace=True,
         )
         additional_silence = data[silence_loc]
-        additional_labels = [2]*len(silence_loc)
+        additional_labels = [2] * len(silence_loc)
         data = torch.concat([data, additional_silence])
-        labels = torch.concat([labels, torch.LongTensor(additional_labels).cuda()])
+        labels = torch.concat(
+            [labels, torch.LongTensor(additional_labels).cuda()]
+        )
 
     shuffle = True if sample == "train" else False
     return _create_loader(data, labels, batch_size=64, shuffle=shuffle)
@@ -132,12 +135,14 @@ def __undersample_dataset(data, labels):
         not_label_examples = data[np.array(labels) != label]
         label_examples = data[np.array(labels) == label]
         label_examples = label_examples[
-            np.random.choice(len(label_examples), size=voice_command_class_count)
+            np.random.choice(
+                len(label_examples), size=voice_command_class_count
+            )
         ]
         data = torch.concat([not_label_examples, label_examples], dim=0)
 
         labels = [el for el in labels if el != label]
-        labels = labels + [label]*voice_command_class_count
+        labels = labels + [label] * voice_command_class_count
     return data, labels
 
 
@@ -149,14 +154,12 @@ def get_label_mapping(
     match setting:
         case "all":
             mapping = dict(
-                zip(range(12), list(encoder.inverse_transform(list(range(12)))))
+                zip(
+                    range(12), list(encoder.inverse_transform(list(range(12))))
+                )
             )
         case "main":
-            mapping = {
-                0: "command",
-                1: "unknown",
-                2: "silence"
-            }
+            mapping = {0: "command", 1: "unknown", 2: "silence"}
         case "commands_only":
             cls_names = list(encoder.inverse_transform(list(range(12))))
             commands_idx = [
@@ -164,14 +167,22 @@ def get_label_mapping(
                 for idx, cls_name in zip(range(12), cls_names)
                 if cls_name not in {"unknown", "silence"}
             ]
-            commands_idx_mapping = dict(zip(range(len(commands_idx)), commands_idx))
-            mapping = {i: cls_names[commands_idx_mapping[i]] for i in range(len(commands_idx))}
+            commands_idx_mapping = dict(
+                zip(range(len(commands_idx)), commands_idx)
+            )
+            mapping = {
+                i: cls_names[commands_idx_mapping[i]]
+                for i in range(len(commands_idx))
+            }
     return mapping
+
 
 def decode_composed_model_predictions(predictions):
     with open("data/converted/encoder.pkl", "rb") as f:
         encoder = pkl.load(f)
     mapping_commands = get_label_mapping("commands_only")
     mapping_commands.update({-1: "unknown", -2: "silence"})
-    predictions = np.array([mapping_commands[prediction] for prediction in predictions])
+    predictions = np.array(
+        [mapping_commands[prediction] for prediction in predictions]
+    )
     return encoder.transform(predictions)
